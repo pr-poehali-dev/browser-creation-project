@@ -56,7 +56,7 @@ const BrowserFrame: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full border rounded-lg shadow-md overflow-hidden">
+    <div className="flex flex-col h-screen border-x shadow-md overflow-hidden">
       <AddressBar
         onNavigate={navigateTo}
         onBack={goBack}

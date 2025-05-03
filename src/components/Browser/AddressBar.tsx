@@ -38,13 +38,13 @@ const AddressBar: React.FC<AddressBarProps> = ({
   };
 
   return (
-    <div className="flex items-center gap-2 p-2 bg-gray-100 border-b">
+    <div className="flex items-center gap-1 p-1 bg-gray-100 border-b">
       <Button 
         variant="ghost" 
         size="icon" 
         onClick={onBack} 
         disabled={!canGoBack}
-        className="h-8 w-8"
+        className="h-7 w-7"
       >
         <ArrowLeft className="h-4 w-4" />
       </Button>
@@ -54,7 +54,7 @@ const AddressBar: React.FC<AddressBarProps> = ({
         size="icon" 
         onClick={onForward} 
         disabled={!canGoForward}
-        className="h-8 w-8"
+        className="h-7 w-7"
       >
         <ArrowRight className="h-4 w-4" />
       </Button>
@@ -63,7 +63,7 @@ const AddressBar: React.FC<AddressBarProps> = ({
         variant="ghost" 
         size="icon" 
         onClick={onRefresh}
-        className="h-8 w-8"
+        className="h-7 w-7"
       >
         <RotateCw className="h-4 w-4" />
       </Button>
@@ -72,7 +72,7 @@ const AddressBar: React.FC<AddressBarProps> = ({
         variant="ghost" 
         size="icon" 
         onClick={onHome}
-        className="h-8 w-8"
+        className="h-7 w-7"
       >
         <Home className="h-4 w-4" />
       </Button>
@@ -83,7 +83,7 @@ const AddressBar: React.FC<AddressBarProps> = ({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Введите URL"
-          className="h-8"
+          className="h-7"
         />
       </form>
     </div>
