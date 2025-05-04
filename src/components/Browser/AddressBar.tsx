@@ -1,10 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, ArrowRight, RotateCw, Home } from 'lucide-react';
 
 interface AddressBarProps {
+  url: string;
   onNavigate: (url: string) => void;
   onBack: () => void;
   onForward: () => void;
@@ -15,6 +16,7 @@ interface AddressBarProps {
 }
 
 const AddressBar: React.FC<AddressBarProps> = ({ 
+  url,
   onNavigate, 
   onBack, 
   onForward, 
@@ -23,15 +25,23 @@ const AddressBar: React.FC<AddressBarProps> = ({
   canGoBack,
   canGoForward 
 }) => {
-  const [url, setUrl] = useState('https://google.com');
+  const [inputUrl, setInputUrl] = useState('');
+  
+  // Обновляем значение ввода при изменении url
+  useEffect(() => {
+    setInputUrl(url);
+  }, [url]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    let processedUrl = url;
+    let processedUrl = inputUrl.trim();
+    
+    // Если поле пустое, не выполняем навигацию
+    if (!processedUrl) return;
     
     // Проверяем наличие протокола, если нет - добавляем https://
-    if (!/^https?:\/\//i.test(url)) {
-      processedUrl = 'https://' + url;
+    if (!/^https?:\/\//i.test(processedUrl)) {
+      processedUrl = 'https://' + processedUrl;
     }
     
     onNavigate(processedUrl);
@@ -80,8 +90,8 @@ const AddressBar: React.FC<AddressBarProps> = ({
       <form onSubmit={handleSubmit} className="flex-1">
         <Input
           type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          value={inputUrl}
+          onChange={(e) => setInputUrl(e.target.value)}
           placeholder="Введите URL"
           className="h-7"
         />
