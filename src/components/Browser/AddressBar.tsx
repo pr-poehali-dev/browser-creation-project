@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, ArrowRight, RotateCw, Home, Settings } from 'lucide-react';
+import { ArrowLeft, ArrowRight, RotateCw, Home, Settings, Star, StarOff } from 'lucide-react';
 
 interface AddressBarProps {
   url: string;
@@ -12,6 +12,8 @@ interface AddressBarProps {
   onRefresh: () => void;
   onHome: () => void;
   onOpenSettings: () => void;
+  onToggleBookmark?: () => void;
+  isBookmarked?: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
   theme?: 'light' | 'dark' | 'colored';
@@ -25,6 +27,8 @@ const AddressBar: React.FC<AddressBarProps> = ({
   onRefresh,
   onHome,
   onOpenSettings,
+  onToggleBookmark,
+  isBookmarked = false,
   canGoBack,
   canGoForward,
   theme = 'light'
@@ -44,7 +48,7 @@ const AddressBar: React.FC<AddressBarProps> = ({
     if (!processedUrl) return;
     
     // Проверяем наличие протокола, если нет - добавляем https://
-    if (!/^(https?:\/\/|home:\/\/|settings:\/\/)/i.test(processedUrl)) {
+    if (!/^(https?:\/\/|home:\/\/|settings:\/\/|search:\/\/)/i.test(processedUrl)) {
       processedUrl = 'https://' + processedUrl;
     }
     
@@ -133,6 +137,21 @@ const AddressBar: React.FC<AddressBarProps> = ({
           className={`h-7 ${getInputThemeClasses()}`}
         />
       </form>
+      
+      {onToggleBookmark && (
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onToggleBookmark}
+          className={`h-7 w-7 ${getButtonThemeClasses()}`}
+        >
+          {isBookmarked ? (
+            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+          ) : (
+            <StarOff className="h-4 w-4" />
+          )}
+        </Button>
+      )}
       
       <Button 
         variant="ghost" 

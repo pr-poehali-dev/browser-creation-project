@@ -3,7 +3,11 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import AddressBar from './AddressBar';
 import HomePage from './HomePage';
 import SettingsPage from './SettingsPage';
-import { X, Plus, Pin, Copy, Volume2, VolumeX } from 'lucide-react';
+import SearchPage from './SearchPage';
+import { 
+  X, Plus, Pin, Copy, Volume2, VolumeX, Bookmark, 
+  Star, StarOff
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu,
@@ -26,21 +30,53 @@ export interface BrowserSettings {
   background: string;
   theme: 'light' | 'dark' | 'colored';
   showClock: boolean;
+  searchEngine: string;
+  incognito: boolean;
+  adBlocker: boolean;
+}
+
+export interface Bookmark {
+  id: string;
+  url: string;
+  title: string;
+  dateAdded: Date;
 }
 
 const HOME_PAGE = 'home://';
 const SETTINGS_PAGE = 'settings://';
+const SEARCH_PAGE = 'search://';
+
+// Префикс для поисковых запросов
+export const SEARCH_PREFIX = 'search://?q=';
+
+// Локальное хранилище
+const STORAGE_KEYS = {
+  SETTINGS: 'browser_settings',
+  TABS: 'browser_tabs',
+  ACTIVE_TAB: 'browser_active_tab',
+  HISTORY: 'browser_history',
+  BOOKMARKS: 'browser_bookmarks'
+};
 
 const BrowserFrame: React.FC = () => {
+  // Закладки
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  
   // Настройки браузера
   const [settings, setSettings] = useState<BrowserSettings>({
     background: 'https://images.unsplash.com/photo-1546587348-d12660c30c50?q=80&w=2874&auto=format&fit=crop',
     theme: 'light',
-    showClock: true
+    showClock: true,
+    searchEngine: 'own',
+    incognito: false,
+    adBlocker: false
   });
   
   // История посещенных URL
   const [browserHistory, setBrowserHistory] = useState<{url: string, title: string, date: Date}[]>([]);
+  
+  // Состояние для поиска
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Состояние для вкладок
   const [tabs, setTabs] = useState<Tab[]>([
@@ -57,6 +93,87 @@ const BrowserFrame: React.FC = () => {
   const [activeTabId, setActiveTabId] = useState('1');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Загрузка данных из локального хранилища при первом рендере
+  useEffect(() => {
+    // Загрузка настроек
+    const savedSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    if (savedSettings) {
+      try {
+        setSettings(JSON.parse(savedSettings));
+      } catch (e) {
+        console.error('Ошибка при загрузке настроек:', e);
+      }
+    }
+    
+    // Загрузка истории
+    const savedHistory = localStorage.getItem(STORAGE_KEYS.HISTORY);
+    if (savedHistory) {
+      try {
+        // Преобразуем строки дат обратно в объекты Date
+        const parsedHistory = JSON.parse(savedHistory).map((item: any) => ({
+          ...item,
+          date: new Date(item.date)
+        }));
+        setBrowserHistory(parsedHistory);
+      } catch (e) {
+        console.error('Ошибка при загрузке истории:', e);
+      }
+    }
+    
+    // Загрузка закладок
+    const savedBookmarks = localStorage.getItem(STORAGE_KEYS.BOOKMARKS);
+    if (savedBookmarks) {
+      try {
+        const parsedBookmarks = JSON.parse(savedBookmarks).map((item: any) => ({
+          ...item,
+          dateAdded: new Date(item.dateAdded)
+        }));
+        setBookmarks(parsedBookmarks);
+      } catch (e) {
+        console.error('Ошибка при загрузке закладок:', e);
+      }
+    }
+    
+    // Загрузка вкладок
+    const savedTabs = localStorage.getItem(STORAGE_KEYS.TABS);
+    if (savedTabs) {
+      try {
+        setTabs(JSON.parse(savedTabs));
+      } catch (e) {
+        console.error('Ошибка при загрузке вкладок:', e);
+      }
+    }
+    
+    // Загрузка активной вкладки
+    const savedActiveTab = localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB);
+    if (savedActiveTab) {
+      setActiveTabId(savedActiveTab);
+    }
+  }, []);
+  
+  // Сохранение настроек в локальное хранилище при их изменении
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+  }, [settings]);
+  
+  // Сохранение вкладок и активной вкладки
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.TABS, JSON.stringify(tabs));
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTabId);
+  }, [tabs, activeTabId]);
+  
+  // Сохранение истории
+  useEffect(() => {
+    if (!settings.incognito) {
+      localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(browserHistory));
+    }
+  }, [browserHistory, settings.incognito]);
+  
+  // Сохранение закладок
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(bookmarks));
+  }, [bookmarks]);
 
   // Получение активной вкладки
   const activeTab = tabs.find(tab => tab.id === activeTabId) || tabs[0];
@@ -70,7 +187,10 @@ const BrowserFrame: React.FC = () => {
 
   // Проверка на специальную страницу
   const isSpecialPage = (url: string) => {
-    return url === HOME_PAGE || url === SETTINGS_PAGE;
+    return url === HOME_PAGE || 
+           url === SETTINGS_PAGE || 
+           url === SEARCH_PAGE || 
+           url.startsWith(SEARCH_PREFIX);
   };
 
   // Обновление заголовка вкладки
@@ -90,7 +210,7 @@ const BrowserFrame: React.FC = () => {
     // Если мы уже на этом URL, не перезагружаем
     if (url === activeTab.url) return;
     
-    // Если это не домашняя/настройки страница, показываем загрузку
+    // Если это не внутренняя страница, показываем загрузку
     if (!isSpecialPage(url)) {
       setLoading(true);
     }
@@ -113,7 +233,7 @@ const BrowserFrame: React.FC = () => {
     );
     
     // Добавляем запись в историю браузера (только для реальных URL)
-    if (!isSpecialPage(url)) {
+    if (!isSpecialPage(url) && !settings.incognito) {
       const historyEntry = {
         url,
         title: activeTab.title,
@@ -121,6 +241,12 @@ const BrowserFrame: React.FC = () => {
       };
       setBrowserHistory(prev => [historyEntry, ...prev]);
     }
+  };
+  
+  // Функция для поиска
+  const search = (query: string) => {
+    setSearchQuery(query);
+    navigateTo(`${SEARCH_PREFIX}${encodeURIComponent(query)}`);
   };
 
   const goBack = () => {
@@ -212,6 +338,7 @@ const BrowserFrame: React.FC = () => {
 
   const closeTab = (tabId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault(); // Важно! Предотвращаем открытие контекстного меню
     
     // Не даём закрыть закрепленную вкладку
     if (tabs.find(tab => tab.id === tabId)?.isPinned) return;
@@ -236,6 +363,39 @@ const BrowserFrame: React.FC = () => {
         const newActiveTabId = tabs[tabIndex === 0 ? 1 : tabIndex - 1].id;
         setActiveTabId(newActiveTabId);
       }
+    }
+  };
+
+  // Управление закладками
+  const addBookmark = (url: string, title: string) => {
+    const newBookmark: Bookmark = {
+      id: Date.now().toString(),
+      url,
+      title,
+      dateAdded: new Date()
+    };
+    
+    setBookmarks(prev => [newBookmark, ...prev]);
+  };
+  
+  const removeBookmark = (id: string) => {
+    setBookmarks(prev => prev.filter(bookmark => bookmark.id !== id));
+  };
+
+  const isCurrentPageBookmarked = () => {
+    const currentUrl = activeTab.url;
+    return bookmarks.some(bookmark => bookmark.url === currentUrl);
+  };
+  
+  const toggleBookmark = () => {
+    const currentUrl = activeTab.url;
+    if (isCurrentPageBookmarked()) {
+      const bookmark = bookmarks.find(b => b.url === currentUrl);
+      if (bookmark) {
+        removeBookmark(bookmark.id);
+      }
+    } else {
+      addBookmark(currentUrl, activeTab.title);
     }
   };
 
@@ -319,6 +479,15 @@ const BrowserFrame: React.FC = () => {
     return a.isPinned ? -1 : 1;
   });
 
+  // Извлекаем поисковый запрос из URL
+  const getSearchQueryFromUrl = (url: string) => {
+    if (url.startsWith(SEARCH_PREFIX)) {
+      const queryParam = url.substring(SEARCH_PREFIX.length);
+      return decodeURIComponent(queryParam);
+    }
+    return '';
+  };
+
   return (
     <div className={`flex flex-col h-screen border-x shadow-md overflow-hidden ${
       settings.theme === 'dark' ? 'bg-gray-900 text-white' : 
@@ -331,60 +500,66 @@ const BrowserFrame: React.FC = () => {
         'bg-gray-200'
       } border-b`}>
         {sortedTabs.map(tab => (
-          <DropdownMenu key={tab.id}>
-            <DropdownMenuTrigger asChild>
-              <div 
-                className={`flex items-center max-w-[200px] px-3 py-1.5 mr-1 rounded-t-md cursor-pointer ${
-                  tab.isPinned ? 'pl-2 pr-2 max-w-[150px]' : ''
-                } ${
-                  activeTabId === tab.id ? 
-                    settings.theme === 'dark' ? 'bg-gray-900' : 
-                    settings.theme === 'colored' ? 'bg-indigo-100' : 
-                    'bg-white' 
-                  : 
-                    settings.theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 
-                    settings.theme === 'colored' ? 'bg-indigo-200 hover:bg-indigo-100' : 
-                    'bg-gray-100 hover:bg-gray-50'
-                }`}
-                onClick={() => setActiveTabId(tab.id)}
-                onContextMenu={(e) => e.preventDefault()}
-              >
-                {tab.isPinned && <Pin className="h-3 w-3 mr-1 text-blue-500" />}
-                {tab.isMuted && <VolumeX className="h-3 w-3 mr-1 text-red-500" />}
-                <div className="truncate text-sm">{tab.title}</div>
-                {!tab.isPinned && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-5 w-5 ml-2"
-                    onClick={(e) => closeTab(tab.id, e)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => togglePin(tab.id)}>
-                <Pin className="h-4 w-4 mr-2" />
-                {tab.isPinned ? 'Открепить' : 'Закрепить'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => duplicateTab(tab.id)}>
-                <Copy className="h-4 w-4 mr-2" />
-                Дублировать
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toggleMute(tab.id)}>
-                {tab.isMuted ? 
-                  <><Volume2 className="h-4 w-4 mr-2" />Включить звук</> : 
-                  <><VolumeX className="h-4 w-4 mr-2" />Отключить звук</>
-                }
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => closeOtherTabs(tab.id)}>
-                <X className="h-4 w-4 mr-2" />
-                Закрыть остальные вкладки
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div key={tab.id}>
+            <div 
+              className={`flex items-center max-w-[200px] px-3 py-1.5 mr-1 rounded-t-md cursor-pointer ${
+                tab.isPinned ? 'pl-2 pr-2 max-w-[150px]' : ''
+              } ${
+                activeTabId === tab.id ? 
+                  settings.theme === 'dark' ? 'bg-gray-900' : 
+                  settings.theme === 'colored' ? 'bg-indigo-100' : 
+                  'bg-white' 
+                : 
+                  settings.theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 
+                  settings.theme === 'colored' ? 'bg-indigo-200 hover:bg-indigo-100' : 
+                  'bg-gray-100 hover:bg-gray-50'
+              }`}
+              onClick={() => setActiveTabId(tab.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                // Открыть меню здесь
+              }}
+            >
+              {tab.isPinned && <Pin className="h-3 w-3 mr-1 text-blue-500" />}
+              {tab.isMuted && <VolumeX className="h-3 w-3 mr-1 text-red-500" />}
+              <div className="truncate text-sm">{tab.title}</div>
+              {!tab.isPinned && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-5 w-5 ml-2"
+                  onClick={(e) => closeTab(tab.id, e)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="hidden">Меню</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => togglePin(tab.id)}>
+                  <Pin className="h-4 w-4 mr-2" />
+                  {tab.isPinned ? 'Открепить' : 'Закрепить'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => duplicateTab(tab.id)}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Дублировать
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toggleMute(tab.id)}>
+                  {tab.isMuted ? 
+                    <><Volume2 className="h-4 w-4 mr-2" />Включить звук</> : 
+                    <><VolumeX className="h-4 w-4 mr-2" />Отключить звук</>
+                  }
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => closeOtherTabs(tab.id)}>
+                  <X className="h-4 w-4 mr-2" />
+                  Закрыть остальные вкладки
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ))}
         <Button 
           variant="ghost" 
@@ -405,6 +580,8 @@ const BrowserFrame: React.FC = () => {
         onRefresh={refresh}
         onHome={goHome}
         onOpenSettings={openSettings}
+        onToggleBookmark={toggleBookmark}
+        isBookmarked={isCurrentPageBookmarked()}
         canGoBack={activeTab.historyIndex > 0}
         canGoForward={activeTab.historyIndex < activeTab.history.length - 1}
         theme={settings.theme}
@@ -415,7 +592,11 @@ const BrowserFrame: React.FC = () => {
         {/* Загрузка */}
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 z-10">
-            <div className="w-8 h-8 border-4 border-t-blue-500 rounded-full animate-spin"></div>
+            <img 
+              src="https://icons8.com/preloaders/preloaders/329/Яйцо%20катится.gif" 
+              alt="Загрузка" 
+              className="w-16 h-16"
+            />
           </div>
         )}
         
@@ -423,7 +604,9 @@ const BrowserFrame: React.FC = () => {
         {activeTab.url === HOME_PAGE && (
           <HomePage 
             settings={settings} 
-            onNavigate={navigateTo} 
+            onNavigate={navigateTo}
+            onSearch={search}
+            bookmarks={bookmarks}
             onUpdateTitle={updateTabTitle}
           />
         )}
@@ -433,7 +616,18 @@ const BrowserFrame: React.FC = () => {
             settings={settings} 
             onUpdateSettings={updateSettings}
             history={browserHistory}
+            bookmarks={bookmarks}
+            onRemoveBookmark={removeBookmark}
             onUpdateTitle={updateTabTitle}
+          />
+        )}
+        
+        {activeTab.url.startsWith(SEARCH_PREFIX) && (
+          <SearchPage
+            query={getSearchQueryFromUrl(activeTab.url)}
+            onNavigate={navigateTo}
+            onUpdateTitle={updateTabTitle}
+            theme={settings.theme}
           />
         )}
         

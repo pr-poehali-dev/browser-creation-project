@@ -2,16 +2,25 @@
 import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search } from 'lucide-react';
+import { Search, ExternalLink } from 'lucide-react';
 import { BrowserSettings } from './BrowserFrame';
+import type { Bookmark } from './BrowserFrame';
 
 interface HomePageProps {
   settings: BrowserSettings;
   onNavigate: (url: string) => void;
+  onSearch: (query: string) => void;
+  bookmarks: Bookmark[];
   onUpdateTitle: (title: string) => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ settings, onNavigate, onUpdateTitle }) => {
+const HomePage: React.FC<HomePageProps> = ({ 
+  settings, 
+  onNavigate, 
+  onSearch,
+  bookmarks,
+  onUpdateTitle 
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [time, setTime] = useState(new Date());
   
@@ -34,7 +43,7 @@ const HomePage: React.FC<HomePageProps> = ({ settings, onNavigate, onUpdateTitle
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      onNavigate(`https://yandex.ru/search/?text=${encodeURIComponent(searchQuery)}`);
+      onSearch(searchQuery);
     }
   };
   
@@ -67,6 +76,9 @@ const HomePage: React.FC<HomePageProps> = ({ settings, onNavigate, onUpdateTitle
         return 'bg-white text-gray-900';
     }
   };
+
+  // Получаем часто посещаемые закладки (до 8)
+  const topBookmarks = bookmarks.slice(0, 8);
   
   return (
     <div 
@@ -100,7 +112,7 @@ const HomePage: React.FC<HomePageProps> = ({ settings, onNavigate, onUpdateTitle
           </form>
         </div>
         
-        <div className="w-full">
+        <div className="w-full mb-8">
           <form onSubmit={handleSearch} className="relative">
             <Input
               type="text"
@@ -118,6 +130,29 @@ const HomePage: React.FC<HomePageProps> = ({ settings, onNavigate, onUpdateTitle
             </Button>
           </form>
         </div>
+        
+        {/* Закладки */}
+        {topBookmarks.length > 0 && (
+          <div className="w-full">
+            <h3 className="font-medium text-white mb-2 shadow-text">Закладки</h3>
+            <div className="grid grid-cols-4 gap-2">
+              {topBookmarks.map(bookmark => (
+                <div 
+                  key={bookmark.id}
+                  onClick={() => onNavigate(bookmark.url)}
+                  className="flex flex-col items-center p-3 bg-white/70 rounded-md cursor-pointer hover:bg-white/90 transition duration-200"
+                >
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mb-2">
+                    <ExternalLink className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="text-sm font-medium text-center truncate w-full">
+                    {bookmark.title}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
